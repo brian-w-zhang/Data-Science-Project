@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+DS_Store
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large Dataset
+CrisisMMD_v2.0/
+image_data/
+clean_crisismmd_tweets.csv
+CDS_project_description_2026.txt
