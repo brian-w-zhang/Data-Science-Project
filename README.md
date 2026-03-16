@@ -13,7 +13,7 @@ To keep the repository lightweight, the large dataset is not included in the Git
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/brian-w-zhang/Data-Science-Project.git
+    git clone git@github.com:brian-w-zhang/Data-Science-Project.git
     ```
 2.  **Download the Dataset**:
     Download the `CrisisMMD_v2.0` folder from our shared **Google Drive**.
