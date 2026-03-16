@@ -8,6 +8,27 @@ During a natural disaster or crisis, a vast amount of information is shared on s
 ## Dataset
 The primary dataset used for this project is **CrisisMMD v2.0**, a large-scale multimodal dataset collected during natural disasters. It contains a collection of tweets paired with images, along with human annotations.
 
+## Setup Instructions for Teammates
+To keep the repository lightweight, the large dataset is not included in the Git history. Please follow these steps to set up the project locally:
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/brian-w-zhang/Data-Science-Project.git
+    ```
+2.  **Download the Dataset**:
+    Download the `CrisisMMD_v2.0` folder from our shared **Google Drive**.
+3.  **Place the Dataset**:
+    Move the downloaded `CrisisMMD_v2.0` folder into the **root directory** of this repository. The structure should look like this:
+    ```text
+    Data-Science-Project/
+    ├── CrisisMMD_v2.0/   <-- Add this here
+    ├── dataprep.ipynb
+    ├── README.md
+    └── ...
+    ```
+4.  **Install Dependencies**:
+    Ensure you have your virtual environment set up and the required libraries (pandas, torch, transformers, etc.) installed.
+
 ## Repository Structure
 
 *   **`dataprep.ipynb`**: Handles the data collection, pre-processing, and cleaning steps. It reads the `crisismmd_master.tsv` annotations, extracts and labels the text for the NLP model (saving it as `clean_crisismmd_tweets.csv`), and sorts the raw images into appropriate folders (`disaster` and `safe`) for the computer vision model.
