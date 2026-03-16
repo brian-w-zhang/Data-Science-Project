@@ -1,0 +1,19 @@
+# Core ML frameworks
+torch==2.10.0
+torchvision              # For ResNet image model
+
+# Hugging Face ecosystem
+transformers==5.3.0      # DistilBERT, ResNet model loading
+datasets==4.7.0          # Dataset loading and splitting
+evaluate==0.4.6          # Accuracy / metrics
+accelerate>=1.1.0        # Required by HuggingFace Trainer with PyTorch
+
+# Data processing
+pandas==3.0.1
+numpy==2.4.3
+scikit-learn             # Required by evaluate for accuracy metric
+Pillow                   # Image loading for ResNet
+
+# Jupyter
+ipykernel==7.2.0
+ipywidgets               # Progress bars in notebooks
