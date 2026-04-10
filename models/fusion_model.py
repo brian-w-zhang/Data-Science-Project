@@ -3,6 +3,24 @@ import torch.nn as nn
 from transformers import AutoModel
 from torchvision.models import resnet50
 
+
+class FusionDatasetWrapper(torch.utils.data.Dataset):
+    """
+    Wraps MultimodalCrisisDataset so each item is:
+      ((input_ids, attention_mask, image), label)
+    which matches the expectation of train_one_epoch / evaluate.
+    """
+    def __init__(self, base_ds):
+        self.ds = base_ds
+    def __len__(self):
+        return len(self.ds)
+    def __getitem__(self, idx):
+        item = self.ds[idx]
+        inputs = (item["input_ids"], item["attention_mask"], item["image"])
+        label  = item["label"]
+        return inputs, label
+
+
 class MultimodalFusionNetwork(nn.Module):
     def __init__(self, text_model_dir: str, vision_weights_path: str, device: str):
         super().__init__()
