@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.utils.data import Dataset
 from transformers import AutoModel
 from torchvision.models import resnet50
 

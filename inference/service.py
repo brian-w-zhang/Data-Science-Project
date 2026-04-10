@@ -37,39 +37,25 @@ class DisasterClassifier:
         self.class_names = ["not_disaster", "disaster"]
 
     @torch.inference_mode()
-    def predict(self, text: Optional[str], image_bytes: Optional[bytes]) -> Dict[str, Any]:
-        if not text and not image_bytes:
+    def predict(self, text: Optional[str], image: Optional[Image.Image] = None) -> Dict[str, Any]:
+        if not text and image is None:
             raise ValueError("At least one of text or image must be provided.")
 
         batch = {}
 
-        if text:
-            enc = self.tokenizer(
-                text,
-                padding="max_length",
-                truncation=True,
-                max_length=self.max_length,
-                return_tensors="pt",
-            )
-            batch["input_ids"] = enc["input_ids"].to(self.device)
-            batch["attention_mask"] = enc["attention_mask"].to(self.device)
-        else:
-            # Dummy text for shape; or adjust model to handle None
-            enc = self.tokenizer(
-                "",
-                padding="max_length",
-                truncation=True,
-                max_length=self.max_length,
-                return_tensors="pt",
-            )
-            batch["input_ids"] = enc["input_ids"].to(self.device)
-            batch["attention_mask"] = enc["attention_mask"].to(self.device)
+        enc = self.tokenizer(
+            text or "",
+            padding="max_length",
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors="pt",
+        )
+        batch["input_ids"] = enc["input_ids"].to(self.device)
+        batch["attention_mask"] = enc["attention_mask"].to(self.device)
 
-        if image_bytes:
-            pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            img_tensor = self.img_transform(pil_img).unsqueeze(0).to(self.device)
+        if image is not None:
+            img_tensor = self.img_transform(image.convert("RGB")).unsqueeze(0).to(self.device)
         else:
-            # Dummy image; for a real project you might want a text-only mode
             dummy = Image.new("RGB", (224, 224), color="black")
             img_tensor = self.img_transform(dummy).unsqueeze(0).to(self.device)
 
@@ -79,7 +65,6 @@ class DisasterClassifier:
             images=img_tensor,
         )
         probs = F.softmax(logits, dim=-1)[0].cpu().numpy()
-
         idx = int(probs.argmax())
         return {
             "label": self.class_names[idx],
