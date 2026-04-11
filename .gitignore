@@ -32,3 +32,4 @@ distilbert_crisismmd/
 resnet_results/
 checkpoint-*/
 checkpoint/
+checkpoints/

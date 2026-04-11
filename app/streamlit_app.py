@@ -1,6 +1,9 @@
+import sys
 from PIL import Image
 import streamlit as st
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from inference.service import DisasterClassifier
 
@@ -62,8 +65,6 @@ if prompt := st.chat_input(
     key="chat_input"
 ):
     user_content = []
-
-    # ChatInputValue always has .text and .files when accept_file=True
     text = prompt.text.strip() if prompt.text else ""
     files = prompt.files if prompt.files else []
 
@@ -72,9 +73,9 @@ if prompt := st.chat_input(
 
     images = []
     for file in files:
-        image_bytes = file.read()
-        user_content.append({"type": "image", "data": image_bytes})
-        images.append(image_bytes)
+        pil_img = Image.open(file).convert("RGB")
+        user_content.append({"type": "image", "data": pil_img})
+        images.append(pil_img)
 
     # Display user message
     with st.chat_message("user"):
@@ -86,15 +87,9 @@ if prompt := st.chat_input(
 
     st.session_state.messages.append({"role": "user", "content": user_content})
 
-    images = []
-    for file in files:
-        pil_img = Image.open(file).convert("RGB")
-        user_content.append({"type": "image", "data": pil_img})
-        images.append(pil_img)
-
     result = service.predict(
-    text=text or None,
-    image=images[0] if images else None,
+        text=text or None,
+        image=images[0] if images else None,
     )
     response_text = f"**{result['label']}** ({result['confidence']:.1%} confidence)"
 
