@@ -17,6 +17,7 @@ Pillow                   # Image loading for ResNet
 
 # Data visualization
 matplotlib
+seaborn
 
 # Jupyter
 ipykernel==7.2.0

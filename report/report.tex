@@ -1,0 +1,296 @@
+\documentclass[11pt,letterpaper]{article}
+
+% --- Packages ---
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs} % For professional tables
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{titlesec}
+\usepackage{abstract}
+\usepackage{parskip}
+
+% --- Document Formatting ---
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\setlength{\parskip}{\baselineskip}
+
+\title{\vspace{-1.5cm}\LARGE\bf Natural Disaster Tweets Classification Using Multimodal Data}
+\author{
+    Brian Zhang \\ Student ID: 1011197 \\ 
+    \and
+    Sabrina Wang \\ Student ID: 1011177 \\ 
+    \and
+    Sondre Kristiansen \\ Student ID: 1011228 \\ 
+    \and
+    Rasmus Tuokko \\ Student ID: 1011234 \\  
+}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+During natural disasters, social media carries critical but noisy signals for response teams. In this project, we build a binary classifier that predicts whether a post is disaster-informative or not using both text and image modalities. We combine a text-only Kaggle disaster tweets dataset with CrisisMMD v2.0 for multimodal training and evaluation. Our PyTorch system uses a DistilBERT text branch, a ResNet50 vision branch, and a late-fusion head that concatenates learned features from both modalities. We compare unimodal and multimodal setups and report validation metrics from our training pipeline: text-only (\(82.80\%\) accuracy, F1 \(=0.7937\)), vision-only (\(82.06\%\) accuracy, F1 \(=0.8170\)), and fusion (\(83.69\%\) accuracy, F1 \(=0.8864\)). On CrisisMMD text-only benchmarking, DistilBERT also significantly outperforms a naive majority baseline (86.29\% vs. 70.92\% accuracy). We further implement a usable Streamlit chatbot-style interface that accepts tweet text and optional image input and returns predicted label confidence. The project demonstrates that multimodal fusion is especially valuable for robust emergency triage, where text and image may be individually ambiguous but jointly informative.
+\end{abstract}
+
+% ==========================================
+\section{Introduction}
+% ==========================================
+%Define the machine learning problem you are investigating. 
+%\begin{itemize}
+%    \item \textbf{Motivation:} Why is this an important problem? Frame this within the context of "AI for Security" or "AI for Social Good".
+%    \item \textbf{Challenges:} Mention specific difficulties, such as extreme class imbalance (anomaly detection) or the complexity of fusing multiple modalities.
+%    \item \textbf{Objectives:} State exactly what your model and UI are designed to achieve.
+%\end{itemize}
+
+This project investigates an automated binary classification problem: given the text and image of a tweet, determine whether it describes a real disaster or not. We train and evaluate models on a combination of two datasets: a text-only Kaggle disaster tweets dataset and a multimodal CrisisMMD dataset.
+
+This problem lies at the intersection of AI for social good and AI for security. During natural and man-made disasters, people use Twitter to share real-time updates about injured or missing people, infrastructure damage, and urgent needs. If such crowd-sourced information can be filtered, classified, and surfaced quickly, it can support humanitarian organizations, emergency managers, and public safety agencies in gaining situational awareness and planning relief operations. At the same time, the ability to rapidly detect and assess emerging incidents from public sources contributes to broader security goals such as crisis detection, public warning, and resource deployment.
+
+From a technical perspective, this setting presents several challenges. First, social media streams are noisy and ambiguous. Disaster-related words are often used metaphorically or jokingly, and many posts during a crisis are merely commentary rather than useful reports. Second, the CrisisMMD dataset exhibits class imbalance, with fewer non-disaster examples compared to disaster-related posts, which can bias the classifier.
+
+The objectives of this work are based on the classification model and the user interface:
+\begin{itemize}
+    \item Develop and evaluate a multimodal machine learning model that classifies tweets as disaster and non-disaster, leveraging both text and images where available, and remaining robust to noisy, real-world data.
+    \item Provide an interface where the user can write a tweet and immediately see how the model classifies it.
+\end{itemize}
+
+The remainder of this report is organized as follows. Section 2 reviews related work on disaster-related social media analysis, multimodal learning, and crisis informatics. Section 3 describes the datasets used in this study and how they were collected and combined, followed by Section 4, which details our preprocessing pipeline. Section 5 presents the proposed methodology and model architecture, and Section 6 outlines the experimental setup, including training procedures and evaluation metrics. Section 7 describes the system implementation and the chatbot-style user interface. Finally, Section 8 concludes with a discussion of our findings, limitations, and directions for future work.
+
+% ==========================================
+\section{Related Work}
+% ==========================================
+The classification of disaster-related social media posts has evolved since the introduction of the CrisisMMD dataset by Alam et al. ($2018$)\cite{alam2018} They provided a benchmark for multi-modal humanitarian data. However, recent advancements have demonstrated the superiority of transformer-based architectures. In $2022$, a study came out using state of the art architectures in language models and image classification, combined on the CrisisMMD dataset.\cite{kotha2022} A couple different models were used and compared. Their findings conclusively demonstrated that multimodal late-fusion architectures outperform unimodal approaches when classifying disaster information. 
+
+\begin{table*}[h]
+\centering
+\caption{Accuracy (\%) for Informative vs Non-Informative using Text + Image Modality (Kotha et al., 2022)}
+\label{tab:informative_fusion_results}
+
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Metric} & \textbf{Bert + VGG16} & \textbf{Bert + VGG19} & \textbf{Bert + ResNet50} & \textbf{Bert + Dense121} & \textbf{Bert + RegNetY320} \\ \midrule
+Train Accuracy      & 99.94 & 99.96 & 100.0 & 100.0 & 100.0 \\
+Validation Accuracy & 86.01 & 86.52 & 89.06 & 88.55 & 89.63 \\
+Test Accuracy       & 86.50 & 86.83 & 88.00 & 89.50 & 89.63 \\
+Precision           & 86.50 & 86.83 & 88.00 & 89.50 & 89.63 \\
+Recall              & 86.50 & 86.83 & 88.00 & 89.50 & 89.63 \\
+F1 Score            & 86.50 & 86.83 & 88.00 & 89.50 & 89.63 \\ \bottomrule
+\end{tabular}%
+} % --- End of resizebox ---
+
+\end{table*}
+
+% ==========================================
+\section{Dataset Collection and Sources}
+% ==========================================
+To establish a robust baseline to our language model, the DistilBERT model was initially fine-tuned using the Kaggle "Natural Language Processing with Disaster Tweets" dataset \cite{kaggle_dataset}, which contains over $10,000$ manually classified tweets, before being integrated into our final multimodal architecture. \\
+For the final architecture, we utilized the \textbf{CrisisMMD (v2.0)} dataset, a publicly available repository containing over $16,000$ multimodal social media posts, collected during seven major natural disasters in $2017$. \\
+The objective of our machine is to classify posts as \textit{Informative}, indicating a real disaster requiring humanitarian aid, or \textit{Not Informative} (safe). \\
+A core challenge in analyzing social media data is modality dissonance - for example, a user might post a devastating image of a collapsed bridge along an uninformative text caption. To prevent our model from filtering out critical visual evidence due to poor text descriptions, a tweet gets flagged if the image \textbf{or} the text is \textit{Informative}. 
+
+\section{Data Pre-processing}
+The CrisisMMD dataset contain extraneous metadata and multi-task annotations. For instance, annotations include secondary labels \textit{Humanitarian Categories} and \textit{Damage Severity Assessment}. To strictly optimize our architecture for rapid binary emergency triage, we stripped the dataframe of these secondary labels columns prior to training. This dimensionality reduction not only prevents the models from relying on potentially noisy or absent metadata, but also significantly reduces the overall computational need. 
+\subsection{Text Pre-processing}
+Raw Twitter text is highly unstructured and filled with artifacts that degrade the performance of language models. To ensure the DistilBERT model focused purely on semantic emergency context, we implemented a strict Regular Expression (RegEx) pipeline. First, we removed all URLs and user mentions (@username), as these act as disruptive noise and could cause the model to overfit to specifics. Secondly, we addressed the problem of emojis and non-ASCII Unicode characters (e.g, \textit{â, €, ™}), since these cause encoding errors and thus impact the performance. The cleaned text was then padded and truncated to a standardized maximum length of $128$ tokens.
+
+\subsection{Image Pre-processing}
+To process the visual data, we utilized a standard computer vision pipeline via \textit{torchvision} to prepare the images for the ResNet50 feature extractor. Images were resized and center-cropped to $224\times224$ pixels to satisfy the architectural requirements of the ResNet model. The pixel values were subsequently normalized using ImageNet standard means [0.485, 0.456, 0.406]) and standard deviations ([0.229, 0.224, 0.225]) to ensure optimal gradient convergence during training. 
+
+\subsection{Handling Class Imbalance of CrisisMMD}
+A significant challenge inherent to the CrisisMMD dataset is the severe class imbalance. In our processed dataset, the distribution is highly skewed: $13,784$ posts (approximately 76\%) are classified as \textit{Informative} (Disaster), while only $4,298$ posts (24\%) are \textit{Not Informative} (Safe). \\
+If we leave it unaddressed, this imbalance leads to the "accuracy paradox" during neural network training. A naive model can achieve an accuracy of 76\% simply by predictingthe majority class for every single input. Consequently, the model would fail entirely at its primary task. \\
+A common preliminary approach to severe imbalance is random undersampling, deleting thousands of majority class instances to achieve a 50/50 split. This method is highly detrimental here, since deep architectures like DistilBERT and ResNet50 are dependent on huge data. Deleting nearly $9,500$ \textit{Informative} tweets would artificially starve the networks, and ignore diverse examples of real-world emergencies. This massive loss of variance would cause the models to severely overfit to the remaining small dataset. 
+
+% ==========================================
+\section{Methodology and Architecture}
+% ==========================================
+\subsection{Baseline Models}
+We used the following baselines to contextualize the final multimodal model:
+\begin{itemize}
+    \item \textbf{Naive majority baseline}: always predicts the majority class on the CrisisMMD text benchmark. This provides a lower bound and highlights class-imbalance effects.
+    \item \textbf{Text-only baseline}: DistilBERT fine-tuned for binary classification (\textit{informative/disaster} vs \textit{not informative/safe}).
+    \item \textbf{Vision-only baseline}: ResNet50 fine-tuned for binary image classification.
+\end{itemize}
+These baselines establish whether multimodal fusion improves performance beyond single-modality models.
+
+\subsection{Proposed Multi-Modal Architecture}
+\textbf{Framework.} All models are implemented in \textbf{PyTorch}, with Hugging Face Transformers used for the text encoder.
+
+\textbf{Text branch.} We use DistilBERT (\texttt{distilbert-base-uncased}) to encode tweet text. Input text is tokenized with max sequence length 128 and passed through a sequence-classification setup during unimodal training.
+
+\textbf{Vision branch.} We use ResNet50 as image encoder. Images are resized and center-cropped to \(224\times224\), then normalized using ImageNet mean/std.
+
+\textbf{Late-fusion network.} The fusion model combines:
+\begin{itemize}
+    \item DistilBERT encoder output (\(768\)-dimensional [CLS]-style representation),
+    \item ResNet50 encoder output (\(2048\)-dimensional representation),
+\end{itemize}
+which are concatenated into a \(2816\)-dimensional vector and passed to a trainable fusion head:
+\[
+2816 \rightarrow 512 \xrightarrow{\text{ReLU + Dropout}(0.5)} 2.
+\]
+\begin{itemize}
+    \item \textbf{Fusion strategy}: Late fusion.
+    \item \textbf{Training design}: text and vision encoders are frozen in fusion training; only the fusion classifier head is optimized.
+\end{itemize}
+
+Our final binary target follows emergency-triage logic:
+\begin{quote}
+\textit{label = 1 if text\_info is informative OR image\_info is informative, else 0.}
+\end{quote}
+This OR-labeling is directly aligned with the project goal of reducing missed disaster-relevant cases.
+\begin{itemize}
+    \item Text feature extractor: DistilBERT.
+    \item Image feature extractor: ResNet50.
+    \item Fusion mechanism: Late Fusion with trainable MLP head.
+    \item Implementation framework: \textbf{PyTorch}.
+\end{itemize}
+
+% ==========================================
+\section{Experimental Setup}
+% ==========================================
+\subsection{Training Strategy}
+We use an \(80/20\) split (\texttt{test\_size=0.2}) with fixed random seed 42 in the training notebooks for reproducibility. The setup is:
+\begin{itemize}
+    \item \textbf{Text branch}: DistilBERT fine-tuning on tweet text.
+    \item \textbf{Vision branch}: ResNet50 fine-tuning on CrisisMMD images.
+    \item \textbf{Fusion branch}: multimodal dataset with text token IDs, attention masks, and transformed images.
+\end{itemize}
+
+In fusion training, we compute class weights from dataset label counts to reduce class-imbalance bias and apply weighted cross-entropy.
+
+\subsection{Hyperparameter Tuning}
+The key hyperparameters used in final runs are:
+\begin{itemize}
+    \item \textbf{Text-only (DistilBERT)}: AdamW optimizer, learning rate \(2\times10^{-5}\), train/eval batch size 16, 3 epochs, max token length 128.
+    \item \textbf{Vision-only (ResNet50)}: Adam optimizer, CrossEntropyLoss, batch size 32, 3 epochs.
+    \item \textbf{Fusion (late fusion)}: Adam optimizer on fusion head only, learning rate \(1\times10^{-3}\), weighted CrossEntropyLoss, batch size 32, 3 epochs, dropout 0.5 in fusion MLP.
+    \item \textbf{Fusion class weights}: \([4.207073,\ 1.3118109]\) for classes \([0,1]\), computed from training-label distribution.
+\end{itemize}
+
+These settings were selected to balance convergence speed and overfitting risk while preserving transfer-learned representations in frozen encoders.
+
+\subsection{Evaluation Metrics}
+We report:
+\begin{itemize}
+    \item \textbf{Accuracy} for overall correctness,
+    \item \textbf{F1-score} (binary) to balance precision/recall under class imbalance,
+    \item \textbf{Class-wise precision and recall},
+    \item \textbf{Confusion matrices} for error profile analysis.
+\end{itemize}
+
+Because CrisisMMD is imbalanced, accuracy alone can be misleading (a majority-class predictor can appear strong while missing minority cases). For this reason, F1 and confusion matrices are primary decision metrics in our discussion.
+
+% ==========================================
+\section{Results and Discussion}
+% ==========================================
+\subsection{Quantitative Results}
+Table~\ref{tab:model_comparison} summarizes our core validation results from the branch-specific and fusion training notebooks.
+
+\begin{table}[h]
+\centering
+\caption{Validation performance comparison across model variants}
+\label{tab:model_comparison}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Model} & \textbf{Val Accuracy} & \textbf{Val F1} \\ \midrule
+Text-only DistilBERT & 82.80\% & 0.7937 \\
+Vision-only ResNet50 & 82.06\% & 0.8170 \\
+Late Fusion (Text + Image) & 83.69\% & 0.8864 \\ \bottomrule
+\end{tabular}
+\end{table}
+
+The fusion model gives the strongest F1 score, indicating more balanced precision/recall trade-offs than either unimodal branch.
+
+\subsection{Baseline Comparison}
+On CrisisMMD text benchmarking, we observed:
+\begin{itemize}
+    \item Naive majority baseline accuracy: 70.92\%
+    \item DistilBERT text model accuracy: 86.29\%
+\end{itemize}
+This confirms that learned language representations are substantially better than trivial class-prior prediction.
+
+\subsection{Discussion}
+The largest multimodal gain appears in F1 rather than raw accuracy. This is consistent with our task design: disaster-related evidence can appear in either text or image, and late fusion helps recover cases where one modality is noisy or weak. Confusion matrices generated in all training notebooks further support that the fusion model reduces asymmetric error patterns seen in unimodal settings.
+
+\subsection{Performance Visualizations}
+For each branch notebook, we plot train/validation loss and accuracy per epoch and produce confusion matrices for validation predictions. These figures are produced in:
+\begin{itemize}
+    \item \texttt{training/01\_text\_branch\_train.ipynb}
+    \item \texttt{training/02\_vision\_branch\_train.ipynb}
+    \item \texttt{training/03\_fusion\_layer\_train.ipynb}
+\end{itemize}
+
+To recreate:
+\begin{enumerate}
+    \item Run the corresponding notebook from top to bottom.
+    \item Ensure dataset root paths are correct for your local environment.
+    \item Execute the plotting and evaluation cells near the end of each notebook.
+    \item Export plotted figures/screenshots and reference them in this report.
+\end{enumerate}
+
+
+% ==========================================
+\section{System Implementation and UI}
+% ==========================================
+\subsection{User Interface (GUI)}
+We implemented a Streamlit chatbot-style interface in \texttt{app/streamlit\_app.py}. The UI supports:
+\begin{itemize}
+    \item tweet text input,
+    \item optional image upload (\texttt{jpg/jpeg/png}),
+    \item model response as predicted label and confidence score.
+\end{itemize}
+
+The inference service (\texttt{inference/service.py}) tokenizes text, preprocesses image input, runs the multimodal fusion model, and returns class probabilities for \texttt{not\_disaster} and \texttt{disaster}.
+
+\textbf{TODO (report finalization):} insert at least one screenshot of the Streamlit interface showing user input and model output.
+
+\subsection{Reproducibility and Codebase}
+Project code repository: \url{https://github.com/brian-w-zhang/Data-Science-Project}
+
+Dependencies are listed in \texttt{requirements.txt}. The expected dataset folder is \texttt{CrisisMMD\_v2.0/} in project root.
+
+\textbf{Current artifact expectation:} the Streamlit app expects:
+\begin{itemize}
+    \item \texttt{checkpoints/text\_branch/}
+    \item \texttt{checkpoints/vision\_brain.pth}
+    \item \texttt{checkpoints/fusion\_brain.pth}
+\end{itemize}
+If checkpoints are generated in Colab, copy them back to local root \texttt{checkpoints/} (see \texttt{training/04\_datasaver.ipynb}).
+
+Recommended execution order:
+\begin{enumerate}
+    \item \texttt{training/00\_dataloader.ipynb} (dataset preparation/path checks)
+    \item \texttt{training/01\_text\_branch\_train.ipynb}
+    \item \texttt{training/02\_vision\_branch\_train.ipynb}
+    \item \texttt{training/03\_fusion\_layer\_train.ipynb}
+    \item \texttt{training/04\_datasaver.ipynb} (if using Colab/Drive transfer)
+    \item Launch app:
+\begin{verbatim}
+streamlit run app/streamlit_app.py
+\end{verbatim}
+\end{enumerate}
+
+Explicitly list the instructions, dependencies, and commands required to:
+\begin{enumerate}
+    \item Train the model entirely from scratch.
+    \item Reload the saved PyTorch `.pth` model weights to instantly reproduce the inference metrics and GUI without retraining.
+\end{enumerate}
+
+% ==========================================
+\section{Conclusion}
+% ==========================================
+This project demonstrates that a multimodal approach is effective for disaster-informative tweet classification. While text-only and vision-only models reach similar validation accuracy (\(\approx 82\%\)), late fusion gives the best F1 (\(0.8864\)), indicating superior balance between precision and recall on imbalanced data. This supports our main hypothesis that text and image provide complementary evidence in noisy crisis settings.
+
+Our implementation is also deployable in practice through a Streamlit interface that accepts live text/image input and returns confidence-based predictions. For future work, we plan to (i) evaluate on event-held-out splits for stronger domain-shift robustness, (ii) improve calibration and threshold tuning for emergency triage, and (iii) experiment with partial encoder unfreezing and stronger augmentation strategies for additional multimodal gains.
+
+% --- References ---
+\bibliographystyle{ieeetr}
+\bibliography{refs}
+
+\end{document}

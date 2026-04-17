@@ -33,3 +33,16 @@ resnet_results/
 checkpoint-*/
 checkpoint/
 checkpoints/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.lof
+*.lot
