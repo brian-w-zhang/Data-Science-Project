@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -53,10 +54,13 @@ def evaluate(model, loader, criterion, device):
     all_probs = []
     total = 0
 
+    loop = tqdm(loader, leave=False)
     with torch.no_grad():
-        for batch in loader:
-            inputs, labels = batch
-            inputs = [x.to(device) for x in inputs]
+        for inputs, labels in loop:
+            if isinstance(inputs, (tuple, list)):
+                inputs = [x.to(device) for x in inputs]
+            else:
+                inputs = [inputs.to(device)]
             labels = labels.to(device)
 
             logits = model(*inputs)
@@ -71,7 +75,20 @@ def evaluate(model, loader, criterion, device):
             all_preds.extend(preds.tolist())
             all_true.extend(labels.cpu().numpy().tolist())
 
+            epoch_acc = 100.0 * sum(p == t for p, t in zip(all_preds, all_true)) / len(all_true)
+            loop.set_postfix(loss=loss.item(), acc=epoch_acc)
+
     epoch_loss = running_loss / total
     epoch_acc  = accuracy_score(all_true, all_preds)
     all_probs = np.concatenate(all_probs, axis=0)  # shape: (N, num_classes)
     return epoch_loss, epoch_acc, all_preds, all_true, all_probs
+
+
+def seed_everything(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False

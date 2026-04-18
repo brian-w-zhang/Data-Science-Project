@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from PIL import Image
 from transformers import AutoTokenizer
 
+from data.text_cleaner import clean_tweet
 from models.fusion_model import MultimodalFusionNetwork
 from data.crisismmd import make_eval_transforms
 
@@ -42,6 +43,10 @@ class DisasterClassifier:
             raise ValueError("At least one of text or image must be provided.")
 
         batch = {}
+
+        # Clean tweet to keep input consistent with training data
+        if text:
+            text = clean_tweet(text)
 
         enc = self.tokenizer(
             text or "",

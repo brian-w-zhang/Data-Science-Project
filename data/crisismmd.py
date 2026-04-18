@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
-
+from data.text_cleaner import clean_tweet
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
@@ -27,6 +27,10 @@ def load_crisismmd_annotations(root: str) -> pd.DataFrame:
 def build_fusion_dataframe(combined: pd.DataFrame) -> pd.DataFrame:
     """Keep necessary columns and build fusion labels."""
     df = combined[["tweet_id", "image_id", "text_info", "image_info", "tweet_text", "image_path"]].copy()
+
+    # Clean tweets
+    df["tweet_text"] = df["tweet_text"].apply(clean_tweet)
+
     df["text_label"] = (df["text_info"] == "informative").astype(int)
     df["image_label"] = (df["image_info"] == "informative").astype(int)
     df["label"] = ((df["text_label"] == 1) | (df["image_label"] == 1)).astype(int)
@@ -112,8 +116,21 @@ class MultimodalCrisisDataset(Dataset):
         rel_path = self.df.loc[idx, "image_path"]
         img_path = os.path.join(self.root_dir, rel_path)
         try:
-            image = Image.open(img_path).convert("RGB")
-        except Exception:
+            image = Image.open(img_path)
+            # Handle palette/alpha correctly
+            if image.mode == "P":
+                # Palette with possible transparency
+                image = image.convert("RGBA")
+            if image.mode == "RGBA":
+                # Composite on white background (or black, your choice)
+                background = Image.new("RGB", image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[3])  # 3 = alpha channel
+                image = background
+            else:
+                # Most images: just ensure RGB
+                image = image.convert("RGB")
+        except Exception as e:
+            print(f"Warning: Could not open {img_path}: {e}")
             image = Image.new("RGB", (224, 224))
         if self.image_transform:
             image = self.image_transform(image)
