@@ -1,43 +1,238 @@
-# Multimodal Crisis Data Analysis
+# Natural Disaster Tweets Classification Using Multimodal Data
 
-This project is a multimodal data science solution developed for the **50.038 Computational Data Science** course at SUTD.
+Binary classification of social media posts as disaster-informative or not, using tweet text and images. Built with DistilBERT (text), ResNet50 (vision), and a late-fusion MLP head.
 
-## Problem Description
-During a natural disaster or crisis, a vast amount of information is shared on social media, containing both text and images. The goal of this project is to build a multimodal classification system that can automatically categorize social media posts (tweets and images) into whether they are "informative" (related to a disaster) or "not informative" (safe). Filtering out non-informative content can significantly aid disaster response and management teams in prioritizing critical information.
+**Authors:** Sondre Kristiansen, Rasmus Tuokko, Brian Zhang, Sabrina Wang
 
-## Dataset
-The primary dataset used for this project is **CrisisMMD v2.0**, a large-scale multimodal dataset collected during natural disasters. It contains a collection of tweets paired with images, along with human annotations.
+---
 
-## Setup Instructions for Teammates
-To keep the repository lightweight, the large dataset is not included in the Git history. Please follow these steps to set up the project locally:
+## Table of Contents
 
-1.  **Clone the repository**:
-    ```bash
-    git clone git@github.com:brian-w-zhang/Data-Science-Project.git
-    ```
-2.  **Download the Dataset**:
-    Download the `CrisisMMD_v2.0` folder from our shared **Google Drive**.
-3.  **Place the Dataset**:
-    Move the downloaded `CrisisMMD_v2.0` folder into the **root directory** of this repository. The structure should look like this:
-    ```text
-    Data-Science-Project/
-    ├── CrisisMMD_v2.0/   <-- Add this here
-    ├── dataprep.ipynb
-    ├── README.md
-    └── ...
-    ```
-4.  **Install Dependencies**:
-    Ensure you have your virtual environment set up and the required libraries (pandas, torch, transformers, etc.) installed.
+- [Project Structure](#project-structure)
+- [Datasets](#datasets)
+- [Setup](#setup)
+- [Training](#training)
+- [Inference & UI](#inference--ui)
+- [Reproducing Results Without Retraining](#reproducing-results-without-retraining)
+- [Model Architecture](#model-architecture)
 
-## Repository Structure
+---
 
-*   **`dataprep.ipynb`**: Handles the data collection, pre-processing, and cleaning steps. It reads the `crisismmd_master.tsv` annotations, extracts and labels the text for the NLP model (saving it as `clean_crisismmd_tweets.csv`), and sorts the raw images into appropriate folders (`disaster` and `safe`) for the computer vision model.
-*   **`nlpmodel.ipynb`**: Contains the training and evaluation for the text modality. It uses a Transformer-based NLP model (e.g., DistilBERT) to classify the text from the tweets.
-*   **`resnetmodel.ipynb`**: Contains the training and evaluation for the image modality. It uses a ResNet-based Deep Learning model for computer vision to classify the images provided in the tweets.
-*   **`CrisisMMD_v2.0/`**: Directory containing the raw images and annotations for the dataset.
-*   **`train.csv` & `test.csv`**: Additional dataset files used for modeling purposes.
+## Project Structure
 
-## Deliverables
-- Check-off and presentations
-- Usable user interface (UI) to demonstrate the model 
-- Final project report in PDF format evaluating and discussing the methodologies, approaches, and findings.
+```
+.
+├── app/
+│   └── streamlit_app.py          # Streamlit UI
+├── data/
+│   ├── kaggle_text.py            # Kaggle CSV loader + clean_tweet()
+│   └── crisismmd.py              # CrisisMMD loaders, datasets, transforms
+├── models/
+│   ├── text_branch.py            # DistilBERT classifier wrapper
+│   ├── vision_branch.py          # ResNet50 classifier wrapper
+│   └── fusion_model.py           # Late-fusion network
+├── training/
+│   ├── utils.py                  # train_one_epoch, evaluate
+│   ├── 00_dataloader.ipynb       # Dataset download & path setup
+│   ├── 01_text_branch_train.ipynb
+│   ├── 02_vision_branch_train.ipynb
+│   ├── 03_fusion_layer_train.ipynb
+│   └── 04_datasaver.ipynb        # Copy Colab checkpoints to Drive
+├── inference/
+│   └── service.py                # Inference service for the UI
+├── checkpoints/                  # Saved model weights (generated at training time)
+│   ├── text_branch/              # HuggingFace model directory
+│   ├── vision_brain.pth          # ResNet50 state dict
+│   └── fusion_brain.pth          # Fusion model state dict
+├── CrisisMMD_v2.0/               # CrisisMMD dataset (downloaded separately)
+├── train.csv                     # Kaggle dataset (downloaded separately)
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Datasets
+
+Two datasets are required. Neither is included in the repository and must be downloaded before training.
+
+### Kaggle — NLP with Disaster Tweets
+
+Used for text branch training (combined with CrisisMMD text).
+
+Download via the notebook or manually from [Kaggle](https://www.kaggle.com/competitions/nlp-getting-started/data). Place `train.csv` in the project root.
+
+```bash
+# Or via gdown (run in 00_dataloader.ipynb):
+gdown 19gyTA8S9wXPlxkyU0mZ_raJO62ny-vpo   # train.csv
+gdown 1NqChJSt70NvgInNvYEyh2GTsBfpXUNuj   # test.csv
+```
+
+### CrisisMMD v2.0
+
+Used for vision branch training, fusion training, and fusion evaluation.
+
+```bash
+gdown 1wi_kAVETQHQyGA-thBhP7VY1L2jD5quI   # CrisisMMD_v2.0.tar.gz
+tar -xzf CrisisMMD_v2.0.tar.gz
+```
+
+The extracted folder `CrisisMMD_v2.0/` must be in the project root. It should contain:
+```
+CrisisMMD_v2.0/
+├── annotations/      # .tsv annotation files (one per disaster event)
+└── data_image/       # tweet images
+```
+
+---
+
+## Setup
+
+### Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+Key dependencies:
+- `torch`, `torchvision`
+- `transformers`, `datasets`
+- `scikit-learn`, `pandas`, `numpy`
+- `Pillow`, `tqdm`
+- `streamlit`
+
+### Running on Google Colab (recommended)
+
+The training notebooks are designed for Colab with GPU. Each notebook clones the repository and sets up paths automatically. Mount Google Drive at the start of each notebook to persist checkpoints across sessions.
+
+### Running locally
+
+Clone the repository and ensure dataset paths in each notebook match your local file structure. The default paths assume datasets are in the project root:
+- `train.csv` → `/path/to/project/train.csv`
+- `CrisisMMD_v2.0/` → `/path/to/project/CrisisMMD_v2.0/`
+
+---
+
+## Training
+
+Run the notebooks **in order**. Each stage depends on checkpoints saved by the previous one.
+
+### 1. Dataset preparation — `00_dataloader.ipynb`
+
+Downloads both datasets and verifies paths. Run this first on a fresh environment.
+
+### 2. Text branch — `01_text_branch_train.ipynb`
+
+Fine-tunes DistilBERT on a balanced combination of Kaggle and CrisisMMD text data (up to 5,000 samples per class per source, stratified 80/20 split). Applies `clean_tweet()` preprocessing to both sources before tokenisation.
+
+Saves to: `checkpoints/text_branch/` (HuggingFace model directory)
+
+Key hyperparameters:
+| Parameter | Value |
+|---|---|
+| Model | `distilbert-base-uncased` |
+| Optimizer | AdamW |
+| Learning rate | `2e-5` |
+| Batch size | 16 |
+| Max epochs | 10 |
+| Early stopping patience | 3 |
+| Max token length | 128 |
+
+### 3. Vision branch — `02_vision_branch_train.ipynb`
+
+Fine-tunes ResNet50 on CrisisMMD images. Only `layer3`, `layer4`, and `fc` are unfrozen. Uses differential learning rates across layers.
+
+Saves to: `checkpoints/vision_brain.pth`
+
+Key hyperparameters:
+| Parameter | Value |
+|---|---|
+| Model | ResNet50 (ImageNet pretrained) |
+| Optimizer | Adam |
+| Learning rates | `layer3`: `1e-5`, `layer4`: `1e-4`, `fc`: `1e-3` |
+| Batch size | 32 |
+| Max epochs | 15 |
+| Early stopping patience | 3 |
+| Scheduler | StepLR (step=3, γ=0.5) |
+
+### 4. Fusion model — `03_fusion_layer_train.ipynb`
+
+Loads frozen text and vision encoders from the checkpoints above. Trains only the fusion MLP head on CrisisMMD multimodal data. Uses weighted cross-entropy to handle class imbalance.
+
+Saves to: `checkpoints/fusion_brain.pth`
+
+Key hyperparameters:
+| Parameter | Value |
+|---|---|
+| Optimizer | Adam (fusion head only) |
+| Learning rate | `1e-3` |
+| Batch size | 32 |
+| Max epochs | 20 |
+| Early stopping patience | 4 |
+| Dropout | 0.5 |
+| Scheduler | ReduceLROnPlateau (factor=0.5, patience=2) |
+| Class weights | `[4.207, 1.312]` for `[safe, disaster]` |
+
+### 5. Save checkpoints — `04_datasaver.ipynb` (Colab only)
+
+If training on Colab, run this to copy checkpoints from the Colab runtime to Google Drive before the session ends.
+
+---
+
+## Inference & UI
+
+### Prerequisites
+
+All three checkpoints must exist:
+```
+checkpoints/text_branch/
+checkpoints/vision_brain.pth
+checkpoints/fusion_brain.pth
+```
+
+### Launch the Streamlit app
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+The interface accepts:
+- Tweet text (required)
+- An image upload — `jpg`, `jpeg`, or `png` (optional)
+
+And returns the predicted label (`disaster` / `not disaster`) with a confidence score.
+
+---
+
+## Reproducing Results Without Retraining
+
+If checkpoints are already available (e.g. downloaded from a shared Drive folder):
+
+1. Place checkpoints in the correct locations listed above.
+2. Skip notebooks 01–03.
+3. Open the evaluation cell at the bottom of whichever notebook's results you want to reproduce, ensure the checkpoint path variables are set correctly, and run from that cell downward.
+
+To reproduce all reported metrics:
+
+| Metric | Notebook | Cell |
+|---|---|---|
+| Text branch validation results | `01_text_branch_train.ipynb` | "Evaluation on best checkpoint" |
+| Vision branch validation results | `02_vision_branch_train.ipynb` | "Evaluation on best checkpoint" |
+| Fusion validation results + majority baseline | `03_fusion_layer_train.ipynb` | "Evaluation on best checkpoint" |
+
+---
+
+## Model Architecture
+
+```
+Tweet text ──► clean_tweet() ──► DistilBERT ──► [CLS] token [B, 768] ──┐
+                                  (frozen)                               ├──► cat [B, 2816] ──► MLP ──► logits [B, 2]
+Tweet image ──► transforms ──► ResNet50 backbone ──► features [B, 2048] ┘
+                                (frozen, fc=Identity)
+
+MLP head: Linear(2816→512) ──► ReLU ──► Dropout(0.5) ──► Linear(512→2)
+```
+
+**Label logic (fusion):** `label = 1` if `text_info == informative` OR `image_info == informative`, else `0`. This OR-labelling ensures that tweets with a strong signal in either modality are flagged as disaster-relevant.
+
+**Text preprocessing:** URLs, @mentions, and non-ASCII characters (emojis, encoding artefacts) are stripped via RegEx before tokenisation, applied consistently during both training and inference.

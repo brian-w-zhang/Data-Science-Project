@@ -1,10 +1,12 @@
 import random
 import numpy as np
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
 
-def train_one_epoch(model, loader, optimizer, criterion, device):
+
+def train_one_epoch(model, loader, optimizer, criterion, device, scheduler=None):
     model.train()
     running_loss = 0.0
     correct = 0
@@ -23,6 +25,17 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
         loss.backward()
         optimizer.step()
 
+        # Step per-batch schedulers (e.g. cosine warmup); epoch-level ones
+        # (StepLR, ReduceLROnPlateau) are stepped manually in the notebook
+        if scheduler is not None and not isinstance(
+            scheduler,
+            (
+                torch.optim.lr_scheduler.StepLR,
+                torch.optim.lr_scheduler.ReduceLROnPlateau,
+            ),
+        ):
+            scheduler.step()
+
         running_loss += loss.item() * labels.size(0)
         preds  = torch.argmax(logits, dim=-1)
         total += labels.size(0)
@@ -36,11 +49,10 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
 def evaluate(model, loader, criterion, device):
     model.eval()
     running_loss = 0.0
-    total = 0
-
     all_preds = []
     all_true  = []
-    all_pos_probs = []  # prob for class 1
+    all_probs = []
+    total = 0
 
     loop = tqdm(loader, leave=False)
     with torch.no_grad():
@@ -54,23 +66,22 @@ def evaluate(model, loader, criterion, device):
             logits = model(*inputs)
             loss   = criterion(logits, labels)
 
+            probs = F.softmax(logits, dim=-1).cpu().numpy()
+            preds = np.argmax(probs, axis=1)
+
             running_loss += loss.item() * labels.size(0)
             total += labels.size(0)
+            all_probs.append(probs)
+            all_preds.extend(preds.tolist())
+            all_true.extend(labels.cpu().numpy().tolist())
 
-            probs = torch.softmax(logits, dim=-1)
-            preds = torch.argmax(probs, dim=-1)
-
-            all_preds.extend(preds.cpu().numpy())
-            all_true.extend(labels.cpu().numpy())
-            # Probability of positive class (index 1) for ROC AUC
-            all_pos_probs.extend(probs[:, 1].cpu().numpy())
-
-            epoch_acc = 100.0 * (torch.tensor(all_preds) == torch.tensor(all_true)).sum().item() / len(all_true)
+            epoch_acc = 100.0 * sum(p == t for p, t in zip(all_preds, all_true)) / len(all_true)
             loop.set_postfix(loss=loss.item(), acc=epoch_acc)
 
     epoch_loss = running_loss / total
     epoch_acc  = accuracy_score(all_true, all_preds)
-    return epoch_loss, epoch_acc, all_preds, all_true, all_pos_probs
+    all_probs = np.concatenate(all_probs, axis=0)  # shape: (N, num_classes)
+    return epoch_loss, epoch_acc, all_preds, all_true, all_probs
 
 
 def seed_everything(seed: int) -> None:
