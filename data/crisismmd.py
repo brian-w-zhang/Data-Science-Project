@@ -116,8 +116,21 @@ class MultimodalCrisisDataset(Dataset):
         rel_path = self.df.loc[idx, "image_path"]
         img_path = os.path.join(self.root_dir, rel_path)
         try:
-            image = Image.open(img_path).convert("RGB")
-        except Exception:
+            image = Image.open(img_path)
+            # Handle palette/alpha correctly
+            if image.mode == "P":
+                # Palette with possible transparency
+                image = image.convert("RGBA")
+            if image.mode == "RGBA":
+                # Composite on white background (or black, your choice)
+                background = Image.new("RGB", image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[3])  # 3 = alpha channel
+                image = background
+            else:
+                # Most images: just ensure RGB
+                image = image.convert("RGB")
+        except Exception as e:
+            print(f"Warning: Could not open {img_path}: {e}")
             image = Image.new("RGB", (224, 224))
         if self.image_transform:
             image = self.image_transform(image)
