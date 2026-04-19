@@ -4,12 +4,15 @@ Binary classification of social media posts as disaster-informative or not, usin
 
 **Authors:** Sondre Kristiansen, Rasmus Tuokko, Brian Zhang, Sabrina Wang
 
+**Repository:** [github.com/brian-w-zhang/Data-Science-Project](https://github.com/brian-w-zhang/Data-Science-Project)
+
 ---
 
 ## Table of Contents
 
 - [Project Structure](#project-structure)
 - [Datasets](#datasets)
+  - [Shared Google Drive](#shared-google-drive)
 - [Setup](#setup)
 - [Training](#training)
 - [Inference & UI](#inference--ui)
@@ -25,8 +28,9 @@ Binary classification of social media posts as disaster-informative or not, usin
 ├── app/
 │   └── streamlit_app.py          # Streamlit UI
 ├── data/
-│   ├── kaggle_text.py            # Kaggle CSV loader + clean_tweet()
-│   └── crisismmd.py              # CrisisMMD loaders, datasets, transforms
+│   ├── kaggle_text.py            # Kaggle CSV loader (uses clean_tweet)
+│   ├── crisismmd.py             # CrisisMMD loaders, datasets, transforms
+│   └── text_cleaner.py           # Shared RegEx preprocessing for train & inference
 ├── models/
 │   ├── text_branch.py            # DistilBERT classifier wrapper
 │   ├── vision_branch.py          # ResNet50 classifier wrapper
@@ -55,6 +59,14 @@ Binary classification of social media posts as disaster-informative or not, usin
 ## Datasets
 
 Two datasets are required. Neither is included in the repository and must be downloaded before training.
+
+### Shared Google Drive
+
+A shared folder contains **CrisisMMD v2.0**, **Kaggle** `train.csv` / `test.csv`, and **saved model checkpoints** (`checkpoints/`) so you can skip long downloads and full retraining:
+
+[Google Drive — project assets](https://drive.google.com/drive/folders/1veiX_VP2qMTxj5m7aodgQWu3qjbmM6_x?usp=sharing)
+
+Download what you need and place files as in [Project Structure](#project-structure): `train.csv` at the repo root, extract `CrisisMMD_v2.0/` beside it, and copy `checkpoints/` (with `text_branch/`, `vision_brain.pth`, `fusion_brain.pth`) for inference or notebook evaluation.
 
 ### Kaggle — NLP with Disaster Tweets
 
@@ -196,11 +208,13 @@ checkpoints/fusion_brain.pth
 streamlit run app/streamlit_app.py
 ```
 
-The interface accepts:
-- Tweet text (required)
-- An image upload — `jpg`, `jpeg`, or `png` (optional)
+The interface accepts **at least one** of:
+- Tweet text
+- An image upload — `jpg`, `jpeg`, or `png`
 
-And returns the predicted label (`disaster` / `not disaster`) with a confidence score.
+If only text is sent, inference uses a placeholder image tensor (same as training-time fusion path). If only an image is sent, text is passed through as empty after cleaning.
+
+The app returns the predicted label (`disaster` or `not_disaster`) with a confidence score (class names match `inference/service.py`).
 
 ---
 

@@ -36,6 +36,9 @@
 \begin{document}
 
 \maketitle
+\begin{center}
+    \small\textit{Project repository:} \url{https://github.com/brian-w-zhang/Data-Science-Project}
+\end{center}
 
 \begin{abstract}
 During natural disasters, social media carries critical but noisy signals for response teams. In this project, we build a binary classifier that predicts whether a post is disaster-informative or not using both text and image modalities. We combine the Kaggle ``NLP with Disaster Tweets'' dataset with CrisisMMD v2.0, applying class-balanced sampling across both sources to form the text branch training pool. Our PyTorch system uses a DistilBERT text branch, a ResNet50 vision branch with layer-wise freezing and differential learning rates, and a late-fusion MLP head that concatenates learned representations from both modalities. We apply learning rate scheduling and F1-based early stopping across all branches to improve convergence and mitigate overfitting. We compare unimodal and multimodal setups and report validation metrics from our training pipeline. We further implement a Streamlit chatbot-style interface that accepts tweet text and an optional image and returns a predicted label with confidence score. The project demonstrates that multimodal fusion is especially effective for emergency triage, where text and image may be individually ambiguous but jointly informative.
@@ -401,8 +404,6 @@ Figures~\ref{fig:streamlit_text}--\ref{fig:streamlit_multi} show screenshots fro
 \end{figure}
 
 \subsection{Reproducibility and Codebase}
-Project code repository: \url{https://github.com/brian-w-zhang/Data-Science-Project}
-
 Dependencies are listed in \texttt{requirements.txt}. Install with \texttt{pip install -r requirements.txt}.
 
 \subsubsection*{Training from Scratch}
