@@ -19,6 +19,9 @@ Pillow                   # Image loading for ResNet
 matplotlib
 seaborn
 
+# App
+streamlit
+
 # Jupyter
 ipykernel==7.2.0
 ipywidgets               # Progress bars in notebooks

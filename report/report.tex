@@ -373,11 +373,32 @@ The largest multimodal gain is concentrated in F1 rather than raw accuracy. This
 \section{System Implementation and UI}
 % ==========================================
 \subsection{User Interface (GUI)}
-We implemented a Streamlit chatbot-style interface in \texttt{app/streamlit\_app.py}. The UI accepts tweet text (required) and an optional image upload (\texttt{jpg/jpeg/png}), and returns the predicted label (\textit{disaster} or \textit{not\_disaster}) together with a confidence score. Built-in example buttons demonstrate model behavior on a clearly non-informative tweet and a realistic disaster report.
+We implemented a Streamlit chatbot-style interface in \texttt{app/streamlit\_app.py}. The UI uses a chat-style layout: users may submit tweet text, attach an image (\texttt{jpg/jpeg/png}), or provide both; at least one of text or image must be present. The model returns the predicted label (\textit{disaster} or \textit{not\_disaster}) together with a confidence score. Built-in example buttons demonstrate model behavior on a clearly non-informative tweet and a realistic disaster-style report.
 
 The inference service (\texttt{inference/service.py}) applies the same \texttt{clean\_tweet()} preprocessing used during training, tokenizes the text, transforms the image using evaluation transforms (or substitutes a blank black image if none is provided), and passes both through the full fusion model to return softmax class probabilities.
 
-% [Placeholder: insert screenshot of Streamlit interface showing user input and model output]
+Figures~\ref{fig:streamlit_text}--\ref{fig:streamlit_multi} show screenshots from our deployment for \textbf{text-only}, \textbf{image-only}, and \textbf{text plus image} inputs. Without an uploaded photo, the vision path receives a placeholder image at inference.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\linewidth]{streamlit_text.png}
+    \caption{Streamlit UI: \textbf{text-only} sessions.}
+    \label{fig:streamlit_text}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\linewidth]{streamlit_img.png}
+    \caption{Streamlit UI: \textbf{image-only} sessions.}
+    \label{fig:streamlit_img}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.80\linewidth]{streamlit_multi.png}
+    \caption{Streamlit UI: \textbf{multimodal} sessions (tweet text with image).}
+    \label{fig:streamlit_multi}
+\end{figure}
 
 \subsection{Reproducibility and Codebase}
 Project code repository: \url{https://github.com/brian-w-zhang/Data-Science-Project}
