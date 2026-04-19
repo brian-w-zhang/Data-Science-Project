@@ -5,7 +5,6 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{booktabs} % For professional tables
-\usepackage{hyperref}
 \usepackage{cite}
 \usepackage{titlesec}
 \usepackage{abstract}
@@ -13,10 +12,13 @@
 \usepackage{subcaption}
 \usepackage{multirow}
 \usepackage{float}
+\usepackage{hyperref}
 
 % --- Document Formatting ---
 \titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titleformat{name=\section,numberless}{\large\bfseries}{}{0em}{}
+\titleformat{name=\subsection,numberless}{\normalsize\bfseries}{}{0em}{}
 \setlength{\parskip}{\baselineskip}
 
 \title{\vspace{-1.5cm}\LARGE\bf Natural Disaster Tweets Classification Using Multimodal Data}
@@ -91,9 +93,10 @@ F1 Score            & 86.50 & 86.83 & 88.00 & 89.50 & 89.63 \\ \bottomrule
 % ==========================================
 \section{Dataset Collection and Sources}
 % ==========================================
-To enrich the training data for our text branch, we draw samples from two publicly available sources: the Kaggle ``Natural Language Processing with Disaster Tweets'' dataset \cite{kaggle_dataset}, which contains over $10,000$ manually classified tweets, and the \textbf{CrisisMMD (v2.0)} dataset \cite{alam2018}, a publicly available repository containing over $16,000$ multimodal social media posts collected during seven major natural disasters in $2017$. From each source, up to $5,000$ examples per class are sampled before concatenation, ensuring neither source dominates the training distribution. \\
-For vision and fusion training, we utilize CrisisMMD exclusively, as it is the only source with paired images. \\
-The objective of our machine is to classify posts as \textit{Informative}, indicating a real disaster requiring humanitarian aid, or \textit{Not Informative} (safe). \\
+To enrich the training data for our text branch, we draw samples from two publicly available sources: the Kaggle ``Natural Language Processing with Disaster Tweets'' dataset \cite{kaggle_dataset}, which contains over $10,000$ manually classified tweets, and the \textbf{CrisisMMD (v2.0)} dataset \cite{alam2018}, a publicly available repository containing over $16,000$ multimodal social media posts collected during seven major natural disasters in $2017$. From each source, up to $5,000$ examples per class are sampled before concatenation, ensuring neither source dominates the training distribution.
+
+For vision and fusion training, we utilize CrisisMMD exclusively, as it is the only source with paired images. The objective of our machine is to classify posts as \textit{Informative}, indicating a real disaster requiring humanitarian aid, or \textit{Not Informative} (safe).
+
 A core challenge in analyzing social media data is modality dissonance - for example, a user might post a devastating image of a collapsed bridge along an uninformative text caption. To prevent our model from filtering out critical visual evidence due to poor text descriptions, a tweet gets flagged if the image \textbf{or} the text is \textit{Informative}:
 \[
 \text{label} = 1 \iff \text{text\_info} = \textit{informative} \;\mathbf{OR}\; \text{image\_info} = \textit{informative}
@@ -105,16 +108,18 @@ A core challenge in analyzing social media data is modality dissonance - for exa
 The CrisisMMD dataset contain extraneous metadata and multi-task annotations. For instance, annotations include secondary labels \textit{Humanitarian Categories} and \textit{Damage Severity Assessment}. To strictly optimize our architecture for rapid binary emergency triage, we stripped the dataframe of these secondary labels columns prior to training. This dimensionality reduction not only prevents the models from relying on potentially noisy or absent metadata, but also significantly reduces the overall computational need.
 
 \subsection{Text Pre-processing}
-Raw Twitter text is highly unstructured and filled with artifacts that degrade the performance of language models. To ensure the DistilBERT model focused purely on semantic emergency context, we implemented a strict Regular Expression (RegEx) pipeline in \texttt{data/text\_cleaner.py}, applied consistently at data load time for both training and inference. First, we removed all URLs and user mentions (@username), as these act as disruptive noise and could cause the model to overfit to specifics. Secondly, we addressed the problem of emojis and non-ASCII Unicode characters (e.g, \textit{â, €, ™}), since these cause encoding errors and thus impact the performance. The cleaned text was then padded and truncated to a standardized maximum length of $128$ tokens.
+Raw Twitter text is highly unstructured and filled with artifacts that degrade the performance of language models. To ensure the DistilBERT \cite{distilbert} model focused purely on semantic emergency context, we implemented a strict Regular Expression (RegEx) pipeline in \texttt{data/text\_cleaner.py}, applied consistently at data load time for both training and inference. First, we removed all URLs and user mentions (@username), as these act as disruptive noise and could cause the model to overfit to specifics. Secondly, we addressed the problem of emojis and non-ASCII Unicode characters (e.g, \textit{â, €, ™}), since these cause encoding errors and thus impact the performance. The cleaned text was then padded and truncated to a standardized maximum length of $128$ tokens.
 
 \subsection{Image Pre-processing}
-To process the visual data, we utilized a standard computer vision pipeline via \textit{torchvision} to prepare the images for the ResNet50 feature extractor. Images were resized and center-cropped to $224\times224$ pixels to satisfy the architectural requirements of the ResNet model. The pixel values were subsequently normalized using ImageNet standard means $[0.485, 0.456, 0.406]$ and standard deviations $[0.229, 0.224, 0.225]$ to ensure optimal gradient convergence during training. \\
-We apply separate transform pipelines for training and evaluation. Training transforms include random augmentation (random horizontal flips ($p=0.5$), rotations up to $15°$, and color jitter (brightness $\pm 0.2$)) to reduce overfitting to specific image appearances. Evaluation transforms apply only deterministic resizing and cropping, ensuring consistent results at inference time. \\
-Images are loaded in RGB; palette (RGBA) images are composited onto a white background prior to conversion, preventing color corruption from naive alpha-channel dropping.
+To process the visual data, we utilized a standard computer vision pipeline via \textit{torchvision} to prepare the images for the ResNet50 \cite{resnet50} feature extractor. Images were resized and center-cropped to $224\times224$ pixels to satisfy the architectural requirements of the ResNet model. The pixel values were subsequently normalized using ImageNet standard means $[0.485, 0.456, 0.406]$ and standard deviations $[0.229, 0.224, 0.225]$ to ensure optimal gradient convergence during training.
+
+We apply separate transform pipelines for training and evaluation. Training transforms include random augmentation (random horizontal flips ($p=0.5$), rotations up to $15°$, and color jitter (brightness $\pm 0.2$)) to reduce overfitting to specific image appearances. Evaluation transforms apply only deterministic resizing and cropping, ensuring consistent results at inference time. Images are loaded in RGB; palette (RGBA) images are composited onto a white background prior to conversion, preventing color corruption from naive alpha-channel dropping.
 
 \subsection{Handling Class Imbalance of CrisisMMD}
-A significant challenge inherent to the CrisisMMD dataset is the severe class imbalance. In our processed dataset, the distribution is highly skewed: $13,784$ posts (approximately 76\%) are classified as \textit{Informative} (Disaster), while only $4,298$ posts (24\%) are \textit{Not Informative} (Safe). \\
-If we leave it unaddressed, this imbalance leads to the ``accuracy paradox'' during neural network training. A naive model can achieve an accuracy of 76\% simply by predicting the majority class for every single input. Consequently, the model would fail entirely at its primary task. \\
+A significant challenge inherent to the CrisisMMD dataset is the severe class imbalance. In our processed dataset, the distribution is highly skewed: $13,784$ posts (approximately 76\%) are classified as \textit{Informative} (Disaster), while only $4,298$ posts (24\%) are \textit{Not Informative} (Safe).
+
+If we leave it unaddressed, this imbalance leads to the ``accuracy paradox'' during neural network training. A naive model can achieve an accuracy of 76\% simply by predicting the majority class for every single input. Consequently, the model would fail entirely at its primary task.
+
 A common preliminary approach to severe imbalance is random undersampling, deleting thousands of majority class instances to achieve a 50/50 split. This method is highly detrimental here, since deep architectures like DistilBERT and ResNet50 are dependent on huge data. Deleting nearly $9,500$ \textit{Informative} tweets would artificially starve the networks, and ignore diverse examples of real-world emergencies. This massive loss of variance would cause the models to severely overfit to the remaining small dataset. Instead, we address imbalance through weighted cross-entropy loss, computing per-class weights from the training label distribution: $w_\text{safe} = 4.207$, $w_\text{disaster} = 1.312$.
 
 % ==========================================
@@ -125,16 +130,18 @@ A common preliminary approach to severe imbalance is random undersampling, delet
 To contextualize the performance of the final multimodal model, we evaluate against three reference configurations. The first is a naive majority classifier that always predicts the dominant class, yielding $70.92\%$ accuracy on the CrisisMMD benchmark and serving as a lower bound that quantifies the effect of class skew. The second is a DistilBERT model fine-tuned solely on tweet text, which achieves $86.29\%$ accuracy on the combined Kaggle and CrisisMMD text corpus, a $15.37$ percentage point improvement over the majority baseline and an indication that textual cues alone carry strong discriminative signal. The third is a ResNet50 model fine-tuned solely on CrisisMMD images. Together, these unimodal baselines allow us to assess whether multimodal fusion provides genuine complementary gains or simply inherits the performance of the stronger individual branch.
 
 \subsection{Proposed Multi-Modal Architecture}
-All models are implemented in PyTorch, with Hugging Face Transformers used for the text encoder.
+The multi-modal architecture comprises a text branch, a vision branch, and a late fusion model. All models are implemented in PyTorch using reusable classes and functions for data loading, training, and evaluation.
 
 For the text branch, we use DistilBERT (\texttt{distilbert-base-uncased}) to encode tweet text. Input text is tokenized with a maximum sequence length of $128$ and passed through a sequence-classification setup, producing a $768$-dimensional [CLS] token representation that captures the overall semantic context of the tweet.
 
-For the vision branch, we use ResNet50 pretrained on ImageNet as the image encoder. To preserve the low-level texture and edge features learned during ImageNet pre-training while allowing the higher-level layers to adapt to disaster imagery, we apply a layer-wise freezing strategy: the first two residual blocks (\texttt{layer1}, \texttt{layer2}) are kept frozen throughout, while \texttt{layer3}, \texttt{layer4}, and the final fully-connected layer are unfrozen and trained with differential learning rates. This graduated approach reflects the conventional understanding that early ResNet layers encode generic visual features (edges, textures) that transfer broadly across domains, while later layers encode task-specific high-level patterns that benefit from domain adaptation. The ResNet50 encoder produces a $2048$-dimensional feature vector.
+For the vision branch, we use ResNet50 pretrained on ImageNet \cite{imagenet} as the image encoder. To preserve the low-level texture and edge features learned during ImageNet pre-training while allowing the higher-level layers to adapt to disaster imagery, we apply a layer-wise freezing strategy: the first two residual blocks (\texttt{layer1}, \texttt{layer2}) are kept frozen throughout, while \texttt{layer3}, \texttt{layer4}, and the final fully-connected layer are unfrozen and trained with differential learning rates. This graduated approach reflects the conventional understanding that early ResNet layers encode generic visual features (edges, textures) that transfer broadly across domains, while later layers encode task-specific high-level patterns that benefit from domain adaptation. The ResNet50 encoder produces a $2048$-dimensional feature vector.
 
 The fusion model concatenates the DistilBERT and ResNet50 representations into a single $2816$-dimensional vector, which is passed through a trainable MLP classifier head:
+
 \[
 2816 \rightarrow 512 \xrightarrow{\text{ReLU + Dropout}(0.5)} 2.
 \]
+
 During fusion training, the text and vision encoders are kept frozen so that only the MLP classifier head is optimized. This prevents catastrophic forgetting of the pretrained representations and keeps fusion training computationally tractable, while the fixed encoder outputs serve as rich multimodal embeddings for the learned fusion stage.
 
 % ==========================================
@@ -172,7 +179,6 @@ Training and validation curves, confusion matrices, and ROC curves from the init
     \centering
     \includegraphics[width=1.0\linewidth]{kaggle-train.png}
     \caption{Training and validation loss/accuracy curves for the DistilBERT text branch (initial run). The model converges rapidly; the best checkpoint was selected at epoch 1 based on minimum validation loss.}
-
     \label{fig:kaggle_train}
 \end{figure}
 
@@ -187,14 +193,17 @@ Training and validation curves, confusion matrices, and ROC curves from the init
         \caption{ROC curve on the validation set.}
         \label{fig:kaggle_roc}
     \end{subfigure}
+    \caption{Initial validation results for the DistilBERT text branch. The misclassifications lean toward false negatives.}
 \end{figure}
+
+The training curves in Figure \ref{fig:kaggle_train} show that the DistilBERT text model converges very quickly: training loss continue to decrease and training accuracy approaches 0.92, while the validation curves flatten and begin to diverge after the first epoch, indicating the onset of overfitting. Minimum validation loss is achieved at epoch 1 and thus selected as the checkpoint. The confusion matrix in Figure \ref{fig:kaggle_confmat} indicates a moderate skew toward false negatives: 170 disaster tweets are misclassified as non-disaster, compared to 105 false positives, which means the text-only model sacrifices some recall on true disasters. The ROC curve in Figure \ref{fig:kaggle_roc} (AUC $\approx$ 0.87) nevertheless indicates that the model ranks disaster vs. non-disaster tweets reasonably well, but the operating threshold implied by the default argmax is conservative for the positive class.
 
 \subsubsection{Vision branch}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{resnet-train.png}
-    \caption{Training and validation loss/accuracy curves for the ResNet50 vision branch.}
+    \caption{Training and validation loss/accuracy curves for the ResNet50 vision branch. The model with minimal loss at epoch 1 was selected as the checkpoint.}
     \label{fig:resnet_train}
 \end{figure}
 
@@ -209,7 +218,10 @@ Training and validation curves, confusion matrices, and ROC curves from the init
         \caption{ROC curve on the validation set.}
         \label{fig:resnet_roc}
     \end{subfigure}
+    \caption{Initial validation results for the ResNet50 vision branch. The misclassifications lean toward false negatives.}
 \end{figure}
+
+For the vision branch, the training curves in Figure \ref{fig:resnet_train} show a steeper improvement on the training set than on the validation set. Training accuracy climbs toward 0.97 and loss drops steadily, whereas validation accuracy oscillates around the low 0.80 range. The validation loss increases after the first epoch, again suggesting overfitting beyond the initial epochs. The confusion matrix in Figure \ref{fig:resnet_confmat} highlights a pattern similar to the text model, with more false negatives than false positives. However, the true-positive count remains high, and the ROC curve in Figure \ref{fig:resnet_roc} (AUC $\approx$ 0.90) indicates that the visual features are informative for distinguishing disaster from non-disaster imagery even if the chosen threshold leads to missed disasters.
 
 \subsubsection{Fusion model}
 
@@ -231,7 +243,10 @@ Training and validation curves, confusion matrices, and ROC curves from the init
         \caption{ROC curve on the validation set.}
         \label{fig:fusion_roc}
     \end{subfigure}
+    \caption{Initial validation results for the fusion model. The misclassifications heavily lean toward false negatives.}
 \end{figure}
+
+The late-fusion training curves in Figure \ref{fig:fusion_train} show that while the fusion head learns steadily on the training set, the validation loss remains substantially higher. The validation accuracy fluctuates without a clear upward trend, pointing to limited generalization and some overfitting of the small MLP on top of the frozen encoders. Compared to the unimodal branches, the confusion matrix in Figure \ref{fig:fusion_confmat} is more polarized: the model correctly identifies a large number of disasters (2,200 true positives) but still produces substantially more false negatives than false positives, suggesting a bias toward predicting the negative class when modalities disagree or evidence is weak. The ROC curve in Figure \ref{fig:fusion_roc} (AUC $\approx$ 0.89) is stronger than the text branch and comparable to the vision branch. Recall of disasters remains a concern in the final fusion step.
 
 \subsection{Training Pipeline Refinements}
 
@@ -297,7 +312,7 @@ The F1-based early stopping selected epoch 3 as the best checkpoint, compared to
     \label{fig:resnet_eval_new}
 \end{figure}
 
-The vision branch, which already incorporated differential learning rates and StepLR scheduling from the initial runs, showed the most stable training behavior of the three branches. The validation accuracy curve exhibits a characteristic dip at epoch 3—a transient instability where the StepLR decay coincides with a particularly challenging batch distribution—before recovering and stabilizing around $83\%$ for the remainder of training. With F1-macro early stopping, the selected checkpoint at epoch 5 achieves $83.02\%$ accuracy, macro F1 of $0.8302$, and ROC-AUC of $0.9059$, representing modest but consistent improvements over the initial run. The classification report shows balanced precision and recall for both classes: precision $0.79$ and recall $0.88$ for the safe class, and precision $0.88$ and recall $0.79$ for the disaster class.
+The vision branch, which already incorporated differential learning rates and StepLR scheduling from the initial runs, showed the most stable training behavior of the three branches. The validation accuracy curve exhibits a characteristic dip at epoch 3, a transient instability where the StepLR decay coincides with a particularly challenging batch distribution, before recovering and stabilizing around $83\%$ for the remainder of training. With F1-macro early stopping, the selected checkpoint at epoch 5 achieves $83.02\%$ accuracy, macro F1 of $0.8302$, and ROC-AUC of $0.9059$, representing modest but consistent improvements over the initial run. The classification report shows balanced precision and recall for both classes: precision $0.79$ and recall $0.88$ for the safe class, and precision $0.88$ and recall $0.79$ for the disaster class.
 
 \subsubsection{Fusion model}
 
@@ -374,7 +389,7 @@ Run the following notebooks in order on Google Colab (GPU recommended). Mount Go
 \begin{enumerate}
     \item \textbf{\texttt{00\_dataloader.ipynb}} --- Download Kaggle \texttt{train.csv} and \texttt{CrisisMMD\_v2.0} via \texttt{gdown} and verify paths.
     \item \textbf{\texttt{01\_text\_branch\_train.ipynb}} --- Fine-tune DistilBERT on the combined Kaggle + CrisisMMD text pool. Saves \texttt{checkpoints/text\_branch/} (Hugging Face format: \texttt{config.json}, \texttt{model.safetensors}, tokenizer files).
-    \item \textbf{\texttt{02\_vision\_branch\_train.ipynb}} --- Fine-tune ResNet50 on CrisisMMD images. Saves \texttt{checkpoints/vision\_brain.pth}.
+    \item \textbf{\texttt{02\_vision\_branch\_train.ipynb}} --- Fine-tune ResNet50 on CrisisMMD images.\\Saves \texttt{checkpoints/vision\_brain.pth}.
     \item \textbf{\texttt{03\_fusion\_layer\_train.ipynb}} --- Train the MLP fusion head with frozen text and vision encoders. Requires the checkpoints from steps 2 and 3. Saves \texttt{checkpoints/fusion\_brain.pth}.
 \end{enumerate}
 
@@ -406,10 +421,10 @@ This project demonstrates that a multimodal approach is effective for disaster-i
 
 The training pipeline was iteratively refined through direct observation of training curves. Early vision branch runs exhibited overfitting, addressed through differential learning rates, StepLR scheduling, and data augmentation. A shared \texttt{text\_cleaner.py} module ensures consistent preprocessing across training and inference, and \texttt{seed\_everything(42)} makes all runs reproducible across sessions.
 
-For future work, we plan to (i) evaluate on event-held-out splits for stronger domain-shift robustness, (ii) improve calibration and threshold tuning for emergency triage, and (iii) experiment with partial encoder unfreezing and stronger augmentation strategies for additional multimodal gains.
+For future work, we plan to (i) evaluate on event-held-out splits for stronger domain-shift robustness, (ii) improve calibration and threshold tuning for emergency triage, and (iii) experiment with partial encoder unfreezing and stronger augmentation strategies for additional multimodal gains. The CrisisMMD dataset also contains confidence scores that could be used to guide the model.
 
 % --- References ---
-\bibliographystyle{IEEEtran}
+\bibliographystyle{ieeetr}
 \bibliography{refs}
 
 \end{document}
